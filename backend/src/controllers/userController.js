@@ -1,69 +1,23 @@
-// env
-const {
-    env: { BCRYPT_SALT },
-} = process;
-// error
-const {
-    emailPasswordDontMatchError,
-    userNotFoundError,
-} = require("../config/error");
-// utils
-const {
-    createUser,
-    findOneUser,
-    comparePassword,
-    hashPassword,
-    signToken,
-} = require("../utils/models/user");
+// app imports
+const { getUsers } = require("../utils/models");
 
-exports.signUpController = async (req, res) => {
-    let {
-        input_email: email,
-        input_password,
-        input_username: username,
-    } = req.body;
+exports.getUsersControllers = async (req, res) => {
+    /**
+     * this is for getting users based on `_available_status`, `_online_status` or `_provider`
+     * Note that: for boolean columns, user should enter query as '1' or '0'
+     */
+    let { query } = req;
 
-    let hashedPassword = await hashPassword(
-        input_password,
-        Number(BCRYPT_SALT)
-    );
+    let payload = {};
+    Object.keys(query).forEach((key) => {
+        payload = { ...payload, [key]: [key, query[key]] };
+    });
 
-    let payload = {
-        email,
-        password: hashedPassword,
-        username,
-    };
-
-    let { data, error, success } = await createUser(payload);
-
-    console.log(payload);
+    let { data, error, success } = await getUsers(payload);
 
     if (!success) {
-        throw new Error(error);
+        return res.status(400).json({ success, error });
     }
 
-    return res.status(201).json({ success, data });
-};
-
-exports.signInController = async (req, res) => {
-    let { input_email: email, input_password } = req.body;
-
-    let { data, error, success } = await findOneUser({ email });
-
-    if (!success) {
-        console.log("-----");
-        console.error(error);
-        console.log("---------");
-        throw new Error(userNotFoundError(email));
-    }
-
-    let { _id, username, password: hashedPassword } = data;
-    let isPassword = await comparePassword(input_password, hashedPassword);
-
-    if (!isPassword) {
-        throw new Error(emailPasswordDontMatchError);
-    }
-
-    let token = signToken({ _id, email, username });
-    return res.status(200).json({ success, token });
+    return res.status(200).json({ success, data });
 };
