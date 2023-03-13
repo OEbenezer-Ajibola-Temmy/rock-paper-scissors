@@ -2,14 +2,13 @@ const express = require("express");
 const http = require("http");
 const { join } = require("path");
 const { Server } = require("socket.io");
-// config
-const { connectToDb } = require("./config/database");
+
 // env
 require("dotenv").config({
     path: join(__dirname, `.env.${process.env.NODE_ENV}`),
 });
 const {
-    env: { MONGODB_URI, PORT },
+    env: { PORT },
 } = process;
 // routes
 const { userRoutes } = require("./routes");
@@ -28,8 +27,5 @@ app.get(baseUrl, (req, res) => {
 });
 
 app.use(`${baseUrl}/auth/user`, userRoutes);
-
-// connectToDb
-connectToDb(MONGODB_URI);
 
 server.listen(PORT, () => console.log(`Server is listening on PORT ${PORT}`));
