@@ -1,7 +1,7 @@
 // app imports
 const { getUsers } = require("../utils/models");
 
-exports.getUsersControllers = async (req, res) => {
+exports.getUsersController = async (req, res) => {
     /**
      * this is for getting users based on `_available_status`, `_online_status` or `_provider`
      * Note that: for boolean columns, user should enter query as '1' or '0'
