@@ -28,4 +28,14 @@ app.get(baseUrl, (req, res) => {
 
 app.use(`${baseUrl}/auth/user`, userRoutes);
 
+// error handler
+app.use((err, req, res, next) => {
+    return res.status(err.status || 400).json({
+        success: false,
+        error: {
+            message: `${err.name}: ${err.message}`,
+        },
+    });
+});
+
 server.listen(PORT, () => console.log(`Server is listening on PORT ${PORT}`));
