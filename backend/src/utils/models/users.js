@@ -1,13 +1,20 @@
-// bcrypt
+// bcrypt, jwt
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 // extras
-const { throwError, userNotFoundError } = require("../extras/error");
+const {
+    throwError,
+    userEmailUpdateError,
+    userNotFoundError,
+} = require("../extras/error");
 const { generateUniqueID } = require("../extras/payload");
 // pg connection pool
 const pool = require("../config/database.js");
 
-const { BCRYPT_SALT: bcryptSalt } = process.env;
+const { BCRYPT_SALT: bcryptSalt, JWT_SECRET_KEY } = process.env;
 const BCRYPT_SALT = Number(bcryptSalt);
+
+/* --- user related --- */
 
 /**
  * {_email, _password, _provider, _username}
@@ -22,22 +29,34 @@ exports.createUser = async (payload = {}) => {
     let response = { data: null, error: "", success: false };
     try {
         if (
-            payload._email == null ||
-            payload._password == null ||
-            payload._username == null
+            (payload._email == null || payload._username == null) &&
+            (payload._password == null || payload._provider)
         ) {
             throwError(
-                "Object `payload` must contain `_email`, `_password` and `_username`. "
+                "Object `payload` must contain `_email`, `_password` or `_provider` and `_username`. "
             );
         }
         const { _email, _password, _provider, _username } = payload;
         let _id = await generateUniqueID("users", "_id");
-        let results = await pool.query(
+        let result = await pool.query(
             "INSERT INTO users(_id, _date_created, _email, _password, _provider, _username) VALUES($1, now(), $2, $3, $4, $5)",
             [_id, _email, _password, _provider, _username]
         );
 
-        response = { ...response, data: results.rows, success: true };
+        /**
+         * in result object, `rows` property is an empty array
+         */
+
+        response = {
+            ...response,
+            data: {
+                _id,
+                _email,
+                _provider,
+                _username,
+            },
+            success: true,
+        };
     } catch (error) {
         response = { ...response, error };
     } finally {
@@ -55,7 +74,7 @@ exports.findOneUser = async (_email) => {
     let response = { data: null, error: "", success: false };
     try {
         if (typeof _email !== "string") {
-            throwError("Email should be 'string'");
+            throwError("Email should be provided as <type> 'string'");
         }
 
         const {
@@ -66,7 +85,7 @@ exports.findOneUser = async (_email) => {
         ]);
 
         if (rowCount === 0) {
-            userNotFoundError(`'email'`);
+            userNotFoundError(`'_email'`);
         }
 
         response = { ...response, data, success: true };
@@ -77,6 +96,11 @@ exports.findOneUser = async (_email) => {
     }
 };
 
+/**
+ * this queries the database and checks for rows that meet the column specified criteria
+ * @param {Object} payload users table column(s) to use to get users by certain degrees
+ * @returns Object - response
+ */
 exports.findUsers = async (payload) => {
     let response = { data: null, error: "", success: false };
     try {
@@ -161,12 +185,12 @@ exports.getUsers = async (payload = {}) => {
         }
 
         console.log({ query_where_conditional });
-        const results = await pool.query(
+        const result = await pool.query(
             `SELECT * FROM users ${query_where_conditional}`
         );
 
-        // console.log(results)
-        response = { ...response, data: results.rows, success: true };
+        // console.log(result)
+        response = { ...response, data: result.rows, success: true };
     } catch (error) {
         console.log("-----");
         console.log(error);
@@ -177,6 +201,68 @@ exports.getUsers = async (payload = {}) => {
         return response;
     }
 };
+
+exports.updateUser = async (_email, payload) => {
+    let response = { data: null, error: "", success: false };
+    try {
+        const payloadKeys = Object.keys(payload);
+        const payloadLength = payloadKeys.length;
+
+        // user is not allowed to change _email
+        if (payloadKeys.includes("_email")) {
+            userEmailUpdateError();
+        }
+
+        // create query text using payload key-value pairs
+        let queryText = "";
+
+        payloadKeys.forEach((key, index) => {
+            queryText = `${queryText}${key} = '${payload[key]}'${
+                index !== payloadLength - 1 ? ", " : ""
+            }`;
+        });
+
+        const result = await pool.query(
+            `UPDATE users SET ${queryText} WHERE _email = $1;`,
+            [_email]
+        );
+
+        response = {
+            ...response,
+            data: { rowCount: result.rowCount, rows: result.rows },
+            success: true,
+        };
+    } catch (error) {
+        response = { ...response, error };
+    } finally {
+        return response;
+    }
+};
+
+/* --- jwt related --- */
+
+/**
+ * synchronously signs the given payload into a JSON Web Token string
+ * @param {Object} payload an object containing data to be signed and verified using a token
+ * @returns string
+ */
+exports.generateToken = (payload) => {
+    // recreate user table in rock_paper_scissors database
+    const jwtSecretkey =
+        "$2a$20$nDDnZRuZwHiRDg3FjBX43O2QHLCaVUkY5zH1PILmpDxaz8FWC.qxm";
+    return jwt.sign(payload, jwtSecretkey, { expiresIn: "2hr" });
+};
+
+/**
+ * synchronously verifies given token
+ * @param {string} token valid JSON Web Token to be verified
+ * @returns Object: signed payload
+ */
+exports.verifyToken = (token) => {
+    return jwt.verify(token, JWT_SECRET_KEY);
+};
+
+/* --- password related --- */
 
 /**
  * generates a hash for the given string
@@ -191,7 +277,7 @@ exports.hashPassword = async (password) => {
  * compares the string and the `hashed` string to see if they match
  * @param {string} password string
  * @param {*} hashedPassword `hashed` string
- * @returns
+ * @returns boolean
  */
 exports.verifyPassword = async (password, hashedPassword) => {
     return await bcrypt.compare(password, hashedPassword);

@@ -26,3 +26,6 @@ exports.generateUniqueID = async (table_name, _id_column_name) => {
         return generated_id;
     }
 };
+
+exports.invalidSocketPayload = (payloadObject) =>
+    `Should contain payloads ${JSON.stringify(payloadObject)}`;

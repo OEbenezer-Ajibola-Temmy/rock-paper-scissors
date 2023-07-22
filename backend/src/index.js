@@ -11,7 +11,11 @@ const {
     env: { PORT },
 } = process;
 // routes
-const { userRoutes } = require("./routes");
+const {
+    roomRoutes,
+    userRoutes,
+    socketRoutes: { initializeRoomIO },
+} = require("./routes");
 // app configuations
 const app = express();
 const server = http.createServer(app);
@@ -22,11 +26,32 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 const baseUrl = "/api/v1";
+const baseSocketUrl = "/api/v1/socket";
+
+// initialize io
+initializeRoomIO(io, baseSocketUrl);
+
 app.get(baseUrl, (req, res) => {
     res.status(200).json({ message: "server is up and running" });
 });
 
+app.use(`${baseUrl}/room`, roomRoutes);
+
+/**
+ * Reason you should maintain `.../auth/user/...` route name convention is in case
+ * there is an admin configuration the routing could be `.../auth/admin/...`
+ */
 app.use(`${baseUrl}/auth/user`, userRoutes);
+
+// invalid routes
+app.use("*", (req, res) => {
+    return res.status(400).json({
+        data: {
+            message: `Cannot ${req.method} ${req.originalUrl}`,
+        },
+        success: false,
+    });
+});
 
 // error handler
 app.use((err, req, res, next) => {

@@ -1,6 +1,8 @@
 const Pool = require("pg").Pool;
 
-const { DB_NAME, DB_PASSWD, DB_USER } = process.env;
+const {
+    env: { DB_NAME, DB_PASSWD, DB_USER },
+} = process;
 
 module.exports = new Pool({
     user: DB_USER,
