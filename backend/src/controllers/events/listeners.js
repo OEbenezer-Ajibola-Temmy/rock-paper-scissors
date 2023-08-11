@@ -41,19 +41,18 @@ exports.functions = {
             const { _id: userId } = socket.user;
 
             // find rooms where there is just one room with the current user _id as the only players
-            let {
-                data: [{ _id: room_id }],
-                error,
-                success,
-            } = await findRoomsBySinglePlayer(userId);
+            let { data, error, success } = await findRoomsBySinglePlayer(
+                userId
+            );
 
             if (success) {
+                let [{ _id: room_id }] = data;
                 // emit tthat user already had an available room, with the available room's _id
                 return socket.emit(roomResult, {
                     data: { room_id },
                     message: "User already has an available room",
                 });
-                return throwError("User already has an available room");
+                // return throwError("User already has an available room");
             }
 
             console.log("[ LINE 48 ]", error, success);
@@ -76,6 +75,7 @@ exports.functions = {
                 success: true,
             });
         } catch (error) {
+            console.log(error);
             return socket.emit(displayError, {
                 error: error.message,
                 success: false,
